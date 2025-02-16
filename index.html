@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Buscador de Cartas Magic</title>
+    <style>
+        :root {
+            --gradient-start: #2c3e50;
+            --gradient-end: #3498db;
+            --card-bg: #ffffff;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            min-height: 100vh;
+            background: linear-gradient(135deg, var(--gradient-start), var(--gradient-end));
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .search-box {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        input[type="text"] {
+            padding: 12px 20px;
+            width: 300px;
+            border-radius: 25px;
+            border: 2px solid #fff;
+            font-size: 16px;
+            transition: all 0.3s;
+            background: rgba(255, 255, 255, 0.9);
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #2980b9;
+            box-shadow: 0 0 15px rgba(52, 152, 219, 0.5);
+        }
+
+        button {
+            padding: 12px 25px;
+            border-radius: 25px;
+            border: none;
+            background: #2980b9;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+            transition: transform 0.2s, background 0.3s;
+            margin-left: 10px;
+        }
+
+        button:hover {
+            background: #1a5276;
+            transform: translateY(-2px);
+        }
+
+        .card-container {
+            background: var(--card-bg);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+            margin-top: 20px;
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 25px;
+            opacity: 0;
+            transform: translateY(20px);
+            transition: opacity 0.5s, transform 0.5s;
+        }
+
+        .card-container.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .card-image {
+            max-width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .detail-section {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+
+        .mana-symbol {
+            width: 20px;
+            height: 20px;
+            display: inline-block;
+            vertical-align: middle;
+            margin: 0 2px;
+        }
+
+        .price-tag {
+            padding: 8px 15px;
+            background: #2ecc71;
+            color: white;
+            border-radius: 20px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        @media (max-width: 768px) {
+            .card-container {
+                grid-template-columns: 1fr;
+            }
+            
+            input[type="text"] {
+                width: 100%;
+                margin-bottom: 10px;
+            }
+
+            button {
+                width: 100%;
+                margin-left: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="search-box">
+            <h1 style="color: white; text-shadow: 2px 2px 4px rgba(0,0,0,0.2);">Buscador de Cartas Magic</h1>
+            <input type="text" id="cardName" placeholder="Ingresa el nombre de la carta">
+            <button onclick="searchCard()">Buscar</button>
+        </div>
+        <div id="cardInfo"></div>
+    </div>
+
+    <script>
+        async function searchCard() {
+            const cardName = document.getElementById('cardName').value.trim();
+            const cardInfoDiv = document.getElementById('cardInfo');
+            cardInfoDiv.innerHTML = '<div class="loading">Buscando...</div>';
+
+            try {
+                const responseNamed = await fetch(`https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cardName)}`);
+                if (!responseNamed.ok) throw new Error('Carta no encontrada');
+                
+                const dataNamed = await responseNamed.json();
+                const set = dataNamed.set;
+                const collector_number = dataNamed.collector_number;
+
+                const responseES = await fetch(`https://api.scryfall.com/cards/${set}/${collector_number}/es`);
+                const dataES = await responseES.json();
+
+                const responseEN = await fetch(`https://api.scryfall.com/cards/${set}/${collector_number}/en`);
+                const dataEN = await responseEN.json();
+
+                const html = `
+                    <div class="card-container show">
+                        <div>
+                            <img src="${dataES.image_uris?.normal}" class="card-image">
+                            ${getPriceSection(dataEN)}
+                        </div>
+                        <div>
+                            ${getBasicInfoSection(dataES)}
+                            ${getGameplaySection(dataES)}
+                            ${getCollectorSection(dataES)}
+                        </div>
+                    </div>
+                `;
+
+                cardInfoDiv.innerHTML = html;
+            } catch (error) {
+                cardInfoDiv.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+            }
+        }
+
+        function getBasicInfoSection(card) {
+            return `
+                <div class="detail-section">
+                    <h2>Información Básica</h2>
+                    <p><strong>Nombre:</strong> ${card.printed_name || card.name}</p>
+                    <p><strong>Coste de Maná:</strong> ${formatManaCost(card.mana_cost)}</p>
+                    <p><strong>Tipo:</strong> ${card.printed_type_line || card.type_line}</p>
+                </div>
+            `;
+        }
+
+        function getGameplaySection(card) {
+            return `
+                <div class="detail-section">
+                    <h2>Juego</h2>
+                    ${card.oracle_text ? `<p><strong>Descripción:</strong><br>${(card.printed_text || card.oracle_text).replace(/\n/g, '<br>')}</p>` : ''}
+                    ${card.power ? `<p><strong>Fuerza/Resistencia:</strong> ${card.power}/${card.toughness}</p>` : ''}
+                    ${card.loyalty ? `<p><strong>Lealtad:</strong> ${card.loyalty}</p>` : ''}
+                    ${card.flavor_text ? `<p class="flavor-text">${card.flavor_text}</p>` : ''}
+                </div>
+            `;
+        }
+
+        function getCollectorSection(card) {
+            return `
+                <div class="detail-section">
+                    <h2>Colección</h2>
+                    <p><strong>Expansión:</strong> ${card.set_name}</p>
+                    <p><strong>Número:</strong> ${card.collector_number}</p>
+                    <p><strong>Rareza:</strong> ${card.rarity}</p>
+                    <p><strong>Artista:</strong> ${card.artist}</p>
+                </div>
+            `;
+        }
+
+        function getPriceSection(card) {
+            return `
+                <div class="detail-section" style="margin-top: 15px;">
+                    <h3>Precios</h3>
+                    ${card.prices.usd ? `<p class="price-tag">Normal: $${card.prices.usd}</p>` : ''}
+                    ${card.prices.usd_foil ? `<p class="price-tag">Foil: $${card.prices.usd_foil}</p>` : ''}
+                    ${card.prices.eur ? `<p class="price-tag">EUR: €${card.prices.eur}</p>` : ''}
+                </div>
+            `;
+        }
+
+        function formatManaCost(manaCost) {
+            if (!manaCost) return 'Ninguno';
+            return manaCost.split(/({[^}]+})/g).filter(s => s).map(symbol => {
+                const cleanSymbol = symbol.replace(/{|}/g, '');
+                return `<img class="mana-symbol" src="https://api.scryfall.com/symbology/render/${cleanSymbol}?style=normal" alt="${symbol}">`;
+            }).join('');
+        }
+    </script>
+</body>
+</html>
